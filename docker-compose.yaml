@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  create_directories:
+    image: alpine
+    command: sh -c "mkdir -p /data/output/postgres /data/output/csv /data/dags /data/meltano /data/pgdata && sleep 5"
+    volumes:
+      - C:/Users/Leticia/Desktop/Engenharia_Dados/Lighthouse/northwind/data/output/postgres:/data/output/postgres
+      - C:/Users/Leticia/Desktop/Engenharia_Dados/Lighthouse/northwind/data/output/csv:/data/output/csv
+      - C:/Users/Leticia/Desktop/Engenharia_Dados/Lighthouse/northwind/dags:/data/dags
+      - C:/Users/Leticia/Desktop/Engenharia_Dados/Lighthouse/northwind/meltano:/data/meltano
+      - C:/Users/Leticia/Desktop/Engenharia_Dados/Lighthouse/northwind/pgdata:/data/pgdata
+    networks:
+      - indicium_network
+
+  db:
+    image: postgres:14
+    depends_on:
+      - create_directories
+    environment:
+      POSTGRES_USER: northwind_user
+      POSTGRES_PASSWORD: thewindisblowing
+      POSTGRES_DB: northwind
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+      - C:/Users/Leticia/Desktop/Engenharia_Dados/Lighthouse/northwind/data/output/postgres:/var/lib/postgresql/data/output
+    networks:
+      - indicium_network
+
+  airflow:
+    image: apache/airflow:2.4.1
+    depends_on:
+      - db
+      
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://northwind_user:thewindisblowing@db/northwind
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__WEBSERVER__WORKERS: 2
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./data:/opt/airflow/data
+      - C:/Users/Leticia/Desktop/Engenharia_Dados/Lighthouse/northwind/data/output/csv:/opt/airflow/data/output/csv
+    ports:
+      - "8080:8080"
+    command: >
+      bash -c "airflow db init && airflow scheduler & airflow webserver"
+    networks:
+      - indicium_network
+
+  meltano:
+    image: meltano/meltano:latest
+    depends_on:
+      - db
+    environment:
+      MELTANO_DATABASE_URL: postgresql+psycopg2://northwind_user:thewindisblowing@db/northwind
+      TAP_POSTGRES_HOST: db
+      TAP_POSTGRES_PORT: 5432
+      TAP_POSTGRES_USER: northwind_user
+      TAP_POSTGRES_PASSWORD: thewindisblowing
+      TAP_POSTGRES_DBNAME: northwind
+      TARGET_POSTGRES_HOST: db
+      TARGET_POSTGRES_PORT: 5432
+      TARGET_POSTGRES_USER: northwind_user
+      TARGET_POSTGRES_PASSWORD: thewindisblowing
+      TARGET_POSTGRES_DBNAME: northwind
+    volumes:
+      - ./meltano:/project
+      - C:/Users/Leticia/Desktop/Engenharia_Dados/Lighthouse/northwind/data/output/postgres:/var/lib/postgresql/data/output
+    ports:
+      - "5000:5000"
+    working_dir: /project
+    entrypoint: ["sh", "-c"]
+    command: |
+      meltano install extractor tap-postgres &&
+      meltano install loader target-postgres &&
+      meltano elt tap-postgres target-postgres
+    networks:
+      - indicium_network
+
+networks:
+  indicium_network:
+    driver: bridge
+
+volumes:
+  db_data:

@@ -1,0 +1,38 @@
+version: 1
+
+plugins:
+  extractors:
+    - name: tap-postgres
+      namespace: tap_postgres
+      pip_url: tap-postgres
+      config:
+        host: ${TAP_POSTGRES_HOST}
+        port: ${TAP_POSTGRES_PORT}
+        user: ${TAP_POSTGRES_USER}
+        password: ${TAP_POSTGRES_PASSWORD}
+        dbname: ${TAP_POSTGRES_DBNAME}
+  
+    - name: tap-csv
+      namespace: tap_csv
+      pip_url: tap-csv
+      config:
+        files:
+          - path: /opt/airflow/data/order_details.csv
+          - path: /opt/airflow/data/northwind.sql
+
+  loaders:
+    - name: target-postgres
+      namespace: target_postgres
+      pip_url: target-postgres
+      config:
+        host: ${TARGET_POSTGRES_HOST}
+        port: ${TARGET_POSTGRES_PORT}
+        user: ${TARGET_POSTGRES_USER}
+        password: ${TARGET_POSTGRES_PASSWORD}
+        dbname: ${TARGET_POSTGRES_DBNAME}
+  
+    - name: target-csv
+      namespace: target_csv
+      pip_url: target-csv
+      config:
+        default_target_path: /opt/airflow/data/output/csv
